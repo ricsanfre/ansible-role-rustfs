@@ -20,7 +20,7 @@
 
 - name: Configure rustfs connection alias
   ansible.builtin.command: >-
-    {{ rustfs_client_bin }} {{ rc_alias_options }} alias set
+    {{ rustfs_client_bin }} alias set {{ rc_alias_options }}
     {{ rustfs_alias }} {{ rustfs_url }}
     {{ rustfs_root_user }} {{ rustfs_root_password }}
   register: alias_command
