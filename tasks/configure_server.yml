@@ -1,0 +1,39 @@
+---
+
+- name: Wait for rustfs server to be reachable
+  ansible.builtin.wait_for:
+    port: "{{ rustfs_server_port }}"
+    host: "{{ rustfs_server_addr | default('127.0.0.1', true) }}"
+    delay: 2
+    timeout: 60
+  when: rustfs_install_server
+
+- name: Set insecure rc command
+  ansible.builtin.set_fact:
+    rc_command: "{{ rustfs_client_bin }} --insecure"
+  when: not rustfs_validate_certificate
+
+- name: Set secure rc command
+  ansible.builtin.set_fact:
+    rc_command: "{{ rustfs_client_bin }}"
+  when: rustfs_validate_certificate
+
+- name: Configure rustfs connection alias
+  ansible.builtin.command: "{{ rc_command }} alias set {{ rustfs_alias }} {{ rustfs_url }} {{ rustfs_root_user }} {{ rustfs_root_password }}"
+  register: alias_command
+  changed_when: false
+  failed_when:
+    - alias_command.rc != 0
+    - "'Added' not in alias_command.stdout"
+
+- name: Create rustfs buckets
+  ansible.builtin.command: "{{ rc_command }} mb {{ rustfs_alias }}/{{ item.name }}"
+  register: bucket_command
+  changed_when: false
+  failed_when:
+    - bucket_command.rc != 0
+    - "'already exists' not in bucket_command.stderr"
+  when: rustfs_buckets | length > 0
+  with_items: "{{ rustfs_buckets }}"
+  loop_control:
+    loop_var: "item"

@@ -1,0 +1,57 @@
+[Unit]
+Description=RustFS Object Storage Server
+Documentation=https://docs.rustfs.com
+Wants=network-online.target
+After=network-online.target
+AssertFileIsExecutable={{ rustfs_server_bin }}
+
+[Service]
+Type=notify
+NotifyAccess=main
+
+User={{ rustfs_user }}
+Group={{ rustfs_group }}
+WorkingDirectory=/usr/local
+
+EnvironmentFile=-{{ rustfs_server_envfile }}
+
+ExecStart={{ rustfs_server_bin }} $RUSTFS_VOLUMES{% if rustfs_server_opts %} $RUSTFS_OPTS{% endif %}
+
+# Let systemd restart this service always
+Restart=always
+RestartSec=10s
+
+# Specifies the maximum file descriptor number that can be opened by this process
+LimitNOFILE=1048576
+LimitNPROC=32768
+
+# Specifies the maximum number of threads this process can create
+TasksMax=infinity
+
+# Disable timeout logic and wait until process is stopped
+TimeoutStopSec=30s
+SendSIGKILL=no
+OOMScoreAdjust=-1000
+
+# Security hardening
+NoNewPrivileges=true
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+
+# Logging
+StandardOutput=append:{{ rustfs_log_dir }}/rustfs.log
+StandardError=append:{{ rustfs_log_dir }}/rustfs-err.log
+
+{% if (rustfs_server_port | int) < 1024 %}
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target

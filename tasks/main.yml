@@ -1,0 +1,24 @@
+---
+# Install rustfs Server
+- name: Install server
+  ansible.builtin.include_tasks: install_server.yml
+  when: rustfs_install_server
+
+# Install rustfs Client
+- name: Install client
+  ansible.builtin.include_tasks: install_client.yml
+  when: rustfs_install_client
+
+# Configure server
+- name: Check if rustfs client exists
+  ansible.builtin.stat:
+    path: "{{ rustfs_client_bin }}"
+  register: rustfs_client
+
+- name: Configure server (requires rustfs client installed)
+  ansible.builtin.include_tasks: configure_server.yml
+  when:
+    - rustfs_url | length > 0 or rustfs_install_server
+    - rustfs_client.stat.exists
+  # run once per cluster
+  run_once: true

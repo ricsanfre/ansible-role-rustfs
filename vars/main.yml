@@ -1,0 +1,23 @@
+---
+# Architecture mapping for rustfs server download URLs
+# Server uses x86_64 / aarch64 in its release asset names
+rustfs_server_arch_map:
+  x86_64: 'x86_64'
+  aarch64: 'aarch64'
+
+rustfs_server_arch: >-
+  {{ rustfs_server_arch_map[ansible_facts['architecture']]
+     | default(ansible_facts['architecture']) }}
+
+# Architecture mapping for rustfs CLI (rc) download URLs
+# CLI uses amd64 / arm64 in its release asset names
+rustfs_cli_arch_map:
+  x86_64: 'amd64'
+  aarch64: 'arm64'
+
+rustfs_cli_arch: >-
+  {{ rustfs_cli_arch_map[ansible_facts['architecture']]
+     | default(ansible_facts['architecture']) }}
+
+# Libc suffix for download URLs
+rustfs_libc_suffix: "{{ 'musl' if rustfs_use_musl else 'gnu' }}"

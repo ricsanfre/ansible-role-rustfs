@@ -1,0 +1,145 @@
+---
+
+- name: Create rustfs group
+  ansible.builtin.group:
+    name: "{{ rustfs_group }}"
+    state: present
+
+- name: Create rustfs user
+  ansible.builtin.user:
+    name: "{{ rustfs_user }}"
+    group: "{{ rustfs_group }}"
+    system: "yes"
+    shell: "/usr/sbin/nologin"
+
+- name: Create the rustfs config directory
+  ansible.builtin.file:
+    path: "{{ rustfs_etc_dir }}"
+    state: directory
+    owner: "{{ rustfs_user }}"
+    group: "{{ rustfs_group }}"
+    mode: "0750"
+
+- name: Create the rustfs data storage directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ rustfs_user }}"
+    group: "{{ rustfs_group }}"
+    mode: "0750"
+  when: rustfs_server_make_datadirs
+  with_items: "{{ rustfs_server_datadirs }}"
+
+- name: Create the rustfs log directory
+  ansible.builtin.file:
+    path: "{{ rustfs_log_dir }}"
+    state: directory
+    owner: "{{ rustfs_user }}"
+    group: "{{ rustfs_group }}"
+    mode: "0750"
+
+- name: Compose the rustfs server asset name
+  ansible.builtin.set_fact:
+    _rustfs_server_asset: "rustfs-linux-{{ rustfs_server_arch }}-{{ rustfs_libc_suffix }}-latest.zip"
+
+- name: Compose the rustfs server download url
+  ansible.builtin.set_fact:
+    _rustfs_server_download_url: "{{ rustfs_download_base_url }}/{{ rustfs_server_version }}/{{ _rustfs_server_asset }}"
+
+- name: Download SHA256SUMS for checksum verification
+  ansible.builtin.get_url:
+    url: "{{ rustfs_download_base_url }}/{{ rustfs_server_version }}/SHA256SUMS"
+    dest: "/tmp/rustfs-SHA256SUMS"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: _download_checksums
+  until: _download_checksums is succeeded
+  retries: 5
+  delay: 2
+
+- name: Extract checksum for server binary
+  ansible.builtin.shell:
+    cmd: "grep '{{ _rustfs_server_asset }}' /tmp/rustfs-SHA256SUMS | awk '{print $1}'"
+  register: _server_checksum_raw
+  changed_when: false
+
+- name: Set server checksum fact
+  ansible.builtin.set_fact:
+    _rustfs_server_checksum: "{{ _server_checksum_raw.stdout }}"
+
+- name: Download the rustfs server binary
+  ansible.builtin.get_url:
+    url: "{{ _rustfs_server_download_url }}"
+    dest: "/tmp/{{ _rustfs_server_asset }}"
+    checksum: "sha256:{{ _rustfs_server_checksum }}"
+  register: _download_server
+  until: _download_server is succeeded
+  retries: 5
+  delay: 2
+
+- name: Install unzip package
+  ansible.builtin.package:
+    name: unzip
+    state: present
+
+- name: Extract rustfs server binary from zip
+  ansible.builtin.unarchive:
+    src: "/tmp/{{ _rustfs_server_asset }}"
+    dest: "/tmp"
+    remote_src: true
+    creates: "/tmp/rustfs"
+  register: _extract_server
+
+- name: Install rustfs server binary
+  ansible.builtin.copy:
+    src: "/tmp/rustfs"
+    dest: "{{ rustfs_server_bin }}"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+    remote_src: true
+  notify: Restart rustfs
+
+- name: Clean up temporary files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/{{ _rustfs_server_asset }}"
+    - "/tmp/rustfs"
+    - "/tmp/rustfs-SHA256SUMS"
+
+- name: Generate the rustfs server envfile
+  ansible.builtin.template:
+    src: rustfs.env.j2
+    dest: "{{ rustfs_server_envfile }}"
+    owner: "{{ rustfs_user }}"
+    group: "{{ rustfs_group }}"
+    mode: "0640"
+  notify: Restart rustfs
+
+- name: Create the rustfs server systemd config
+  ansible.builtin.template:
+    src: rustfs.service.j2
+    dest: "/etc/systemd/system/rustfs.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify:
+    - Reload rustfs systemd
+    - Restart rustfs
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure rustfs is started at boot
+  ansible.builtin.service:
+    name: rustfs
+    enabled: true
+    state: started
+
+- name: Set rustfs url if not defined
+  ansible.builtin.set_fact:
+    rustfs_url: "http://{{ rustfs_server_addr | default('127.0.0.1', true) }}:{{ rustfs_server_port }}"
+  when: rustfs_url | length == 0

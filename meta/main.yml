@@ -1,0 +1,22 @@
+---
+galaxy_info:
+  role_name: rustfs
+  author: ricsanfre
+  description: rustfs installation and configuration role
+
+  license: license (MIT)
+
+  min_ansible_version: "2.11"
+
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+
+  galaxy_tags:
+    - system
+    - s3
+    - rustfs
+    - object-storage
+
+dependencies: []

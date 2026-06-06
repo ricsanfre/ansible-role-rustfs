@@ -1,0 +1,11 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: ricsanfre.rustfs
+      rustfs_root_user: "rustfsadmin"
+      rustfs_root_password: "rustfsadmin"
+      rustfs_buckets:
+        - name: test-bucket

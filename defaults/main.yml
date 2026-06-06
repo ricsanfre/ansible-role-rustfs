@@ -1,0 +1,74 @@
+---
+# Install server, client or both
+rustfs_install_server: true
+rustfs_install_client: true
+
+# rustfs unix user
+rustfs_group: rustfs
+rustfs_user: rustfs
+
+# rustfs data directories
+rustfs_server_make_datadirs: true
+rustfs_server_datadirs:
+  - /var/lib/rustfs
+
+# rustfs bin path
+rustfs_server_bin: /usr/local/bin/rustfs
+rustfs_client_bin: /usr/local/bin/rc
+
+# rustfs server config dirs
+rustfs_etc_dir: /etc/rustfs
+rustfs_log_dir: /var/log/rustfs
+
+# rustfs server env file
+rustfs_server_envfile: "{{ rustfs_etc_dir }}/rustfs.conf"
+
+# rustfs server listen address
+rustfs_server_port: "9000"
+rustfs_console_port: "9001"
+rustfs_server_addr: ""
+
+# Enable web console
+rustfs_console_enable: true
+
+# Logging
+rustfs_obs_logger_level: "error"
+
+# Additional environment variables to be set in rustfs server environment
+rustfs_server_env_extra: ""
+
+# Additional rustfs server CLI options
+rustfs_server_opts: ""
+
+# rustfs server url (auto-detected if empty)
+rustfs_url: ""
+
+# rustfs credentials (root user)
+rustfs_root_user: ""
+rustfs_root_password: ""
+
+# Use musl (static) builds for maximum compatibility
+rustfs_use_musl: true
+
+# Version to install
+rustfs_server_version: "1.0.0-beta.7"
+rustfs_cli_version: "v0.1.20"
+
+# Base download URLs
+rustfs_download_base_url: "https://github.com/rustfs/rustfs/releases/download"
+rustfs_cli_download_base_url: "https://github.com/rustfs/cli/releases/download"
+
+# Buckets to create after installation
+rustfs_buckets: []
+# rustfs_buckets:
+#   - name: bucket1
+
+# rustfs client alias
+rustfs_alias: "myrustfs"
+
+# rustfs client: validate TLS certificate
+rustfs_validate_certificate: true
+
+# rustfs client connection retries
+rustfs_client_connect_retries: 30
+rustfs_client_connect_delay: 5
