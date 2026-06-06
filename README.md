@@ -127,6 +127,32 @@ rustfs_buckets: []
 #   - name: bucket1
 ```
 
+### TLS
+
+To enable TLS, set `rustfs_enable_tls` to `true` and provide the private key and public certificate content in `rustfs_tls_key` and `rustfs_tls_cert` variables.
+
+```yaml
+rustfs_enable_tls: false
+rustfs_tls_cert: ""
+rustfs_tls_key: ""
+rustfs_tls_path: "{{ rustfs_etc_dir }}/ssl"
+```
+
+When TLS is enabled, the role:
+- Creates the TLS directory (`/etc/rustfs/ssl` by default)
+- Copies the certificate as `rustfs_cert.pem` and the key as `rustfs_key.pem`
+- Sets `RUSTFS_TLS_PATH` in the environment file
+- Configures the server URL to use `https://`
+
+Cert and key content can be loaded from files using Ansible tasks:
+
+```yaml
+- name: Load tls key and cert from files
+  set_fact:
+    rustfs_tls_key: "{{ lookup('file', 'certificates/' + inventory_hostname + '_private.key') }}"
+    rustfs_tls_cert: "{{ lookup('file', 'certificates/' + inventory_hostname + '_public.crt') }}"
+```
+
 ### Extra configuration
 
 Additional environment variables and CLI options passed to the RustFS server:
@@ -196,6 +222,65 @@ Playbook with custom data directories and buckets:
       rustfs_buckets:
         - name: backups
         - name: media
+```
+
+Playbook with TLS enabled using self-signed certificates:
+
+```yaml
+---
+- name: Install and configure RustFS Server with TLS
+  hosts: rustfs
+  become: true
+  gather_facts: true
+  vars:
+    server_hostname: rustfs.example.com
+    ssl_key_size: 4096
+    ssl_certificate_provider: selfsigned
+
+  pre_tasks:
+    - name: Generate self-signed SSL certificates for rustfs
+      include_tasks: generate_selfsigned_cert.yml
+      args:
+        apply:
+          delegate_to: localhost
+          become: false
+    - name: Load tls key and cert
+      set_fact:
+        rustfs_tls_key: "{{ lookup('file', 'certificates/' + inventory_hostname + '_private.key') }}"
+        rustfs_tls_cert: "{{ lookup('file', 'certificates/' + inventory_hostname + '_public.crt') }}"
+
+  roles:
+    - role: ricsanfre.rustfs
+      rustfs_root_user: "rustfsadmin"
+      rustfs_root_password: "supers1cret0"
+      rustfs_enable_tls: true
+      rustfs_validate_certificate: false
+      rustfs_buckets:
+        - name: bucket1
+```
+
+Where `generate_selfsigned_cert.yml` contains the tasks for generating a private key and self-signed certificate:
+
+```yaml
+---
+- name: Create private certificate
+  community.crypto.openssl_privatekey:
+    path: "certificates/{{ inventory_hostname }}_private.key"
+    size: "{{ ssl_key_size | int }}"
+    mode: "0644"
+
+- name: Create CSR
+  community.crypto.openssl_csr:
+    path: "certificates/{{ inventory_hostname }}_cert.csr"
+    privatekey_path: "certificates/{{ inventory_hostname }}_private.key"
+    common_name: "{{ server_hostname }}"
+
+- name: Create certificates for keystore
+  community.crypto.x509_certificate:
+    csr_path: "certificates/{{ inventory_hostname }}_cert.csr"
+    path: "certificates/{{ inventory_hostname }}_public.crt"
+    privatekey_path: "certificates/{{ inventory_hostname }}_private.key"
+    provider: selfsigned
 ```
 
 License
