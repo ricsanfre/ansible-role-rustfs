@@ -1,9 +1,13 @@
 ---
 
-- name: Compose the rustfs client download url
+- name: Compose the rustfs client asset name
   ansible.builtin.set_fact:
     _rustfs_cli_asset: "rustfs-cli-linux-{{ rustfs_cli_arch }}-{{ rustfs_cli_version }}.tar.gz"
-    _rustfs_cli_download_url: "{{ rustfs_cli_download_base_url }}/{{ rustfs_cli_version }}/rustfs-cli-linux-{{ rustfs_cli_arch }}-{{ rustfs_cli_version }}.tar.gz"
+
+- name: Compose the rustfs client download url
+  ansible.builtin.set_fact:
+    _rustfs_cli_download_url: >-
+      {{ rustfs_cli_download_base_url }}/{{ rustfs_cli_version }}/{{ _rustfs_cli_asset }}
 
 - name: Download SHA256SUMS for checksum verification
   ansible.builtin.get_url:
@@ -19,7 +23,10 @@
 
 - name: Extract checksum for client binary
   ansible.builtin.shell:
-    cmd: "grep '{{ _rustfs_cli_asset }}' /tmp/rustfs-cli-SHA256SUMS | awk '{print $1}'"
+    executable: /bin/bash
+    cmd: |
+      set -o pipefail
+      grep '{{ _rustfs_cli_asset }}' /tmp/rustfs-cli-SHA256SUMS | awk '{print $1}'
   register: _cli_checksum_raw
   changed_when: false
 
@@ -32,6 +39,9 @@
     url: "{{ _rustfs_cli_download_url }}"
     dest: "/tmp/{{ _rustfs_cli_asset }}"
     checksum: "sha256:{{ _rustfs_cli_checksum }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
   register: _download_client
   until: _download_client is succeeded
   retries: 5

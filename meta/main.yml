@@ -17,6 +17,9 @@ galaxy_info:
     - system
     - s3
     - rustfs
-    - object-storage
+    - objectstorage
 
 dependencies: []
+
+collections:
+  - community.crypto

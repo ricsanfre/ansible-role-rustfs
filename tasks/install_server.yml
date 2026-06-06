@@ -38,6 +38,15 @@
     group: "{{ rustfs_group }}"
     mode: "0750"
 
+- name: Create the rustfs TLS directory
+  ansible.builtin.file:
+    path: "{{ rustfs_tls_path }}"
+    state: directory
+    owner: "{{ rustfs_user }}"
+    group: "{{ rustfs_group }}"
+    mode: "0750"
+  when: rustfs_enable_tls
+
 - name: Compose the rustfs server asset name
   ansible.builtin.set_fact:
     _rustfs_server_asset: "rustfs-linux-{{ rustfs_server_arch }}-{{ rustfs_libc_suffix }}-latest.zip"
@@ -60,7 +69,10 @@
 
 - name: Extract checksum for server binary
   ansible.builtin.shell:
-    cmd: "grep '{{ _rustfs_server_asset }}' /tmp/rustfs-SHA256SUMS | awk '{print $1}'"
+    executable: /bin/bash
+    cmd: |
+      set -o pipefail
+      grep '{{ _rustfs_server_asset }}' /tmp/rustfs-SHA256SUMS | awk '{print $1}'
   register: _server_checksum_raw
   changed_when: false
 
@@ -73,6 +85,9 @@
     url: "{{ _rustfs_server_download_url }}"
     dest: "/tmp/{{ _rustfs_server_asset }}"
     checksum: "sha256:{{ _rustfs_server_checksum }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
   register: _download_server
   until: _download_server is succeeded
   retries: 5
@@ -130,6 +145,28 @@
     - Reload rustfs systemd
     - Restart rustfs
 
+- name: Copy TLS private key file
+  ansible.builtin.copy:
+    dest: "{{ rustfs_tls_path }}/rustfs_key.pem"
+    content: "{{ rustfs_tls_key }}"
+    owner: "{{ rustfs_user }}"
+    group: "{{ rustfs_user }}"
+    mode: "0640"
+  become: true
+  when: rustfs_enable_tls and (rustfs_tls_key | default("")) != ""
+  notify: Restart rustfs
+
+- name: Copy TLS cert file
+  ansible.builtin.copy:
+    dest: "{{ rustfs_tls_path }}/rustfs_cert.pem"
+    content: "{{ rustfs_tls_cert }}"
+    owner: "{{ rustfs_user }}"
+    group: "{{ rustfs_user }}"
+    mode: "0640"
+  become: true
+  when: rustfs_enable_tls and (rustfs_tls_cert | default("")) != ""
+  notify: Restart rustfs
+
 - name: Flush handlers
   ansible.builtin.meta: flush_handlers
 
@@ -139,7 +176,12 @@
     enabled: true
     state: started
 
-- name: Set rustfs url if not defined
+- name: Set secure rustfs url if not defined
+  ansible.builtin.set_fact:
+    rustfs_url: "https://{{ rustfs_server_addr | default('127.0.0.1', true) }}:{{ rustfs_server_port }}"
+  when: rustfs_enable_tls and rustfs_url | length == 0
+
+- name: Set unsecure rustfs url if not defined
   ansible.builtin.set_fact:
     rustfs_url: "http://{{ rustfs_server_addr | default('127.0.0.1', true) }}:{{ rustfs_server_port }}"
-  when: rustfs_url | length == 0
+  when: not rustfs_enable_tls and rustfs_url | length == 0

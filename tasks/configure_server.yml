@@ -10,16 +10,17 @@
 
 - name: Set insecure rc command
   ansible.builtin.set_fact:
-    rc_command: "{{ rustfs_client_bin }} --insecure"
+    rc_alias_options: "--insecure"
   when: not rustfs_validate_certificate
 
 - name: Set secure rc command
   ansible.builtin.set_fact:
-    rc_command: "{{ rustfs_client_bin }}"
+    rc_alias_options: ""
   when: rustfs_validate_certificate
 
 - name: Configure rustfs connection alias
-  ansible.builtin.command: "{{ rc_command }} alias set {{ rustfs_alias }} {{ rustfs_url }} {{ rustfs_root_user }} {{ rustfs_root_password }}"
+  ansible.builtin.command: >-
+    {{ rustfs_client_bin }} {{ rc_alias_options }} alias set {{ rustfs_alias }} {{ rustfs_url }} {{ rustfs_root_user }} {{ rustfs_root_password }}
   register: alias_command
   changed_when: false
   failed_when:
@@ -27,7 +28,7 @@
     - "'Added' not in alias_command.stdout"
 
 - name: Create rustfs buckets
-  ansible.builtin.command: "{{ rc_command }} mb {{ rustfs_alias }}/{{ item.name }}"
+  ansible.builtin.command: "{{ rustfs_client_bin }} mb {{ rustfs_alias }}/{{ item.name }}"
   register: bucket_command
   changed_when: false
   failed_when:

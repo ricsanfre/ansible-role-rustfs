@@ -18,6 +18,7 @@ rustfs_client_bin: /usr/local/bin/rc
 
 # rustfs server config dirs
 rustfs_etc_dir: /etc/rustfs
+rustfs_tls_path: "{{ rustfs_etc_dir }}/ssl"
 rustfs_log_dir: /var/log/rustfs
 
 # rustfs server env file
@@ -72,3 +73,8 @@ rustfs_validate_certificate: true
 # rustfs client connection retries
 rustfs_client_connect_retries: 30
 rustfs_client_connect_delay: 5
+
+# TLS
+rustfs_enable_tls: false
+rustfs_tls_cert: ""
+rustfs_tls_key: ""

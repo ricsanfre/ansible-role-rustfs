@@ -1,0 +1,30 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    server_hostname: rustfs.ricsanfre.com
+    ssl_key_size: 4096
+    ssl_certificate_provider: selfsigned
+
+  pre_tasks:
+    - name: Generate self-signed SSL certificates for rustfs
+      include_tasks: tasks/generate_selfsigned_cert.yml
+      args:
+        apply:
+          delegate_to: localhost
+          become: false
+    - name: Load tls key and cert
+      set_fact:
+        rustfs_tls_key: "{{ lookup('file', 'certificates/' + inventory_hostname + '_private.key') }}"
+        rustfs_tls_cert: "{{ lookup('file', 'certificates/' + inventory_hostname + '_public.crt') }}"
+
+  roles:
+    - role: ricsanfre.rustfs
+      rustfs_root_user: "rustfsadmin"
+      rustfs_root_password: "rustfsadmin"
+      rustfs_enable_tls: true
+      rustfs_validate_certificate: false
+      rustfs_buckets:
+        - name: bucket1
