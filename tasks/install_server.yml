@@ -47,13 +47,35 @@
     mode: "0750"
   when: rustfs_enable_tls
 
+- name: Check if rustfs server binary is already installed
+  ansible.builtin.stat:
+    path: "{{ rustfs_server_bin }}"
+  register: _server_binary
+
+- name: Get installed rustfs server version
+  ansible.builtin.command: "{{ rustfs_server_bin }} --version"
+  register: _server_version_output
+  changed_when: false
+  failed_when: false
+  when: _server_binary.stat.exists
+
+- name: Determine if server needs (re)installation
+  ansible.builtin.set_fact:
+    _server_needs_install: true
+  when: >-
+    not _server_binary.stat.exists
+    or _server_version_output.rc != 0
+    or rustfs_server_version not in _server_version_output.stdout
+
 - name: Compose the rustfs server asset name
   ansible.builtin.set_fact:
     _rustfs_server_asset: "rustfs-linux-{{ rustfs_server_arch }}-{{ rustfs_libc_suffix }}-latest.zip"
+  when: _server_needs_install | default(false) | bool
 
 - name: Compose the rustfs server download url
   ansible.builtin.set_fact:
     _rustfs_server_download_url: "{{ rustfs_download_base_url }}/{{ rustfs_server_version }}/{{ _rustfs_server_asset }}"
+  when: _server_needs_install | default(false) | bool
 
 - name: Download SHA256SUMS for checksum verification
   ansible.builtin.get_url:
@@ -66,6 +88,7 @@
   until: _download_checksums is succeeded
   retries: 5
   delay: 2
+  when: _server_needs_install | default(false) | bool
 
 - name: Extract checksum for server binary
   ansible.builtin.shell:
@@ -75,10 +98,12 @@
       grep '{{ _rustfs_server_asset }}' /tmp/rustfs-SHA256SUMS | awk '{print $1}'
   register: _server_checksum_raw
   changed_when: false
+  when: _server_needs_install | default(false) | bool
 
 - name: Set server checksum fact
   ansible.builtin.set_fact:
     _rustfs_server_checksum: "{{ _server_checksum_raw.stdout }}"
+  when: _server_needs_install | default(false) | bool
 
 - name: Download the rustfs server binary
   ansible.builtin.get_url:
@@ -92,11 +117,13 @@
   until: _download_server is succeeded
   retries: 5
   delay: 2
+  when: _server_needs_install | default(false) | bool
 
 - name: Install unzip package
   ansible.builtin.package:
     name: unzip
     state: present
+  when: _server_needs_install | default(false) | bool
 
 - name: Extract rustfs server binary from zip
   ansible.builtin.unarchive:
@@ -105,6 +132,7 @@
     remote_src: true
     creates: "/tmp/rustfs"
   register: _extract_server
+  when: _server_needs_install | default(false) | bool
 
 - name: Install rustfs server binary
   ansible.builtin.copy:
@@ -115,6 +143,7 @@
     mode: "0755"
     remote_src: true
   notify: Restart rustfs
+  when: _server_needs_install | default(false) | bool
 
 - name: Clean up temporary files
   ansible.builtin.file:
@@ -124,6 +153,8 @@
     - "/tmp/{{ _rustfs_server_asset }}"
     - "/tmp/rustfs"
     - "/tmp/rustfs-SHA256SUMS"
+  changed_when: false
+  when: _server_needs_install | default(false) | bool
 
 - name: Generate the rustfs server envfile
   ansible.builtin.template:

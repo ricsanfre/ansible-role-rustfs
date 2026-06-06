@@ -1,13 +1,36 @@
 ---
 
+- name: Check if rustfs client binary is already installed
+  ansible.builtin.stat:
+    path: "{{ rustfs_client_bin }}"
+  register: _client_binary
+
+- name: Get installed rustfs client version
+  ansible.builtin.command: "{{ rustfs_client_bin }} --version"
+  register: _client_version_output
+  changed_when: false
+  failed_when: false
+  when: _client_binary.stat.exists
+
+- name: Determine if client needs (re)installation
+  ansible.builtin.set_fact:
+    _client_needs_install: true
+  when: >-
+    not _client_binary.stat.exists
+    or _client_version_output.rc != 0
+    or (rustfs_cli_version not in _client_version_output.stdout
+        and rustfs_cli_version | regex_replace('^v', '') not in _client_version_output.stdout)
+
 - name: Compose the rustfs client asset name
   ansible.builtin.set_fact:
     _rustfs_cli_asset: "rustfs-cli-linux-{{ rustfs_cli_arch }}-{{ rustfs_cli_version }}.tar.gz"
+  when: _client_needs_install | default(false) | bool
 
 - name: Compose the rustfs client download url
   ansible.builtin.set_fact:
     _rustfs_cli_download_url: >-
       {{ rustfs_cli_download_base_url }}/{{ rustfs_cli_version }}/{{ _rustfs_cli_asset }}
+  when: _client_needs_install | default(false) | bool
 
 - name: Download SHA256SUMS for checksum verification
   ansible.builtin.get_url:
@@ -20,6 +43,7 @@
   until: _download_cli_checksums is succeeded
   retries: 5
   delay: 2
+  when: _client_needs_install | default(false) | bool
 
 - name: Extract checksum for client binary
   ansible.builtin.shell:
@@ -29,10 +53,12 @@
       grep '{{ _rustfs_cli_asset }}' /tmp/rustfs-cli-SHA256SUMS | awk '{print $1}'
   register: _cli_checksum_raw
   changed_when: false
+  when: _client_needs_install | default(false) | bool
 
 - name: Set client checksum fact
   ansible.builtin.set_fact:
     _rustfs_cli_checksum: "{{ _cli_checksum_raw.stdout }}"
+  when: _client_needs_install | default(false) | bool
 
 - name: Download the rustfs client
   ansible.builtin.get_url:
@@ -46,6 +72,7 @@
   until: _download_client is succeeded
   retries: 5
   delay: 2
+  when: _client_needs_install | default(false) | bool
 
 - name: Extract rustfs client binary from tar.gz
   ansible.builtin.unarchive:
@@ -54,6 +81,7 @@
     remote_src: true
     creates: "/tmp/rc"
   register: _extract_client
+  when: _client_needs_install | default(false) | bool
 
 - name: Install rustfs client binary
   ansible.builtin.copy:
@@ -63,6 +91,7 @@
     group: "root"
     mode: "0755"
     remote_src: true
+  when: _client_needs_install | default(false) | bool
 
 - name: Clean up temporary files
   ansible.builtin.file:
@@ -72,3 +101,5 @@
     - "/tmp/{{ _rustfs_cli_asset }}"
     - "/tmp/rc"
     - "/tmp/rustfs-cli-SHA256SUMS"
+  changed_when: false
+  when: _client_needs_install | default(false) | bool
